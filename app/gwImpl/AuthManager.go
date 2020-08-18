@@ -13,6 +13,7 @@ type AuthManager struct {
 	store             gw.Store
 	permissionManager gw.IPermissionManager
 	hash              gw.ICryptoHash
+	passwordSigner    gw.IPasswordSigner
 	userCachePrefix   string
 	expiration        time.Duration
 	permPagerExpr     gw.PagerExpr
@@ -24,7 +25,7 @@ func (a AuthManager) getUserCacheKey(passport string) string {
 
 func (a AuthManager) Login(passport, secret, credType, verifyCode string) (gw.User, error) {
 	var gwUser gw.User
-	//secretHash := secret
+	password := a.passwordSigner.Sign(secret)
 	cache := a.store.GetCacheStoreByName("gwPro")
 	userCacheKey := a.getUserCacheKey(passport)
 	bytes, err := cache.Get(context.Background(), userCacheKey).Bytes()
@@ -34,7 +35,7 @@ func (a AuthManager) Login(passport, secret, credType, verifyCode string) (gw.Us
 	}
 	var user dbModel.User
 	db := a.store.GetDbStoreByName("gwPro")
-	err = db.Where("passport = ? and secret = ?", passport, secret).First(&user).Error
+	err = db.Where("passport = ? and secret = ?", passport, password).First(&user).Error
 	if err != nil {
 		return gw.EmptyUser, err
 	}
@@ -62,6 +63,7 @@ func DefaultAuthManager(initCtx gw.ServerInitializationContext) AuthManager {
 		userCachePrefix:   "gw-pro-user",
 		expiration:        time.Hour * 168,
 		permissionManager: initCtx.PermissionManager,
+		passwordSigner:    initCtx.PasswordSigner,
 		permPagerExpr:     gw.DefaultPagerExpr(2048, 1),
 	}
 }
