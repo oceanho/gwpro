@@ -179,7 +179,7 @@ settings:
 # Any Your custom configuration item at here.
 # More: https://github.com/oceanho/gw/master/docs/configuration#custom
 custom:
-#  user: OceanHo
-#  tags:
-#    - body
-#    - programmer
+  gwpro:
+    store:
+      backend: primary
+      cache: primary

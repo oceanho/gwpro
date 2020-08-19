@@ -2,9 +2,10 @@ package gwImpl
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	json "github.com/json-iterator/go"
 	"github.com/oceanho/gw"
+	"github.com/oceanho/gwpro"
 	"github.com/oceanho/gwpro/app/dbModel"
 	"time"
 )
@@ -17,6 +18,7 @@ type AuthManager struct {
 	userCachePrefix   string
 	expiration        time.Duration
 	permPagerExpr     gw.PagerExpr
+	gwProConf         gwpro.GwConfiguration
 }
 
 func (a AuthManager) getUserCacheKey(passport string) string {
@@ -26,7 +28,7 @@ func (a AuthManager) getUserCacheKey(passport string) string {
 func (a AuthManager) Login(passport, secret, credType, verifyCode string) (gw.User, error) {
 	var gwUser gw.User
 	password := a.passwordSigner.Sign(secret)
-	cache := a.store.GetCacheStoreByName("gwPro")
+	cache := a.store.GetCacheStoreByName(a.gwProConf.Store.Cache)
 	userCacheKey := a.getUserCacheKey(passport)
 	bytes, err := cache.Get(context.Background(), userCacheKey).Bytes()
 	if err == nil && len(bytes) > 0 {
@@ -34,7 +36,7 @@ func (a AuthManager) Login(passport, secret, credType, verifyCode string) (gw.Us
 		return gwUser, err
 	}
 	var user dbModel.User
-	db := a.store.GetDbStoreByName("gwPro")
+	db := a.store.GetDbStoreByName(a.gwProConf.Store.Backend)
 	err = db.Where("passport = ? and secret = ?", passport, password).First(&user).Error
 	if err != nil {
 		return gw.EmptyUser, err
@@ -57,6 +59,11 @@ func (a AuthManager) Logout(user gw.User) bool {
 }
 
 func DefaultAuthManager(initCtx gw.ServerInitializationContext) AuthManager {
+	var gwProcnf gwpro.GwConfiguration
+	err := initCtx.AppConfig.ParseCustomPathTo("gwpro", &gwProcnf)
+	if err != nil {
+		panic(fmt.Sprintf("app.yaml maybe has not custom/gwPro Section config, err: %v", err))
+	}
 	return AuthManager{
 		store:             initCtx.Store,
 		hash:              initCtx.Hash,
@@ -65,5 +72,6 @@ func DefaultAuthManager(initCtx gw.ServerInitializationContext) AuthManager {
 		permissionManager: initCtx.PermissionManager,
 		passwordSigner:    initCtx.PasswordSigner,
 		permPagerExpr:     gw.DefaultPagerExpr(2048, 1),
+		gwProConf:         gwProcnf,
 	}
 }
